@@ -233,6 +233,31 @@ async def handle_dm_command(event):
         )
         await event.reply(msg, parse_mode='markdown')
 
+
+def should_skip_due_to_links(text):
+    """
+    Returns True if the text has a forbidden link (not in whitelist, not t.me), else False.
+    """
+    if not text:
+        return False
+
+    # Find all links in the text
+    links = re.findall(r'(https?://[^\s]+|www\.[^\s]+)', text, flags=re.IGNORECASE)
+    whitelist = ['https://tronscan', 'https://blockchain', 'https://www.blockchain']
+
+    for link in links:
+        link_low = link.lower()
+        # Allow t.me links always
+        if 't.me/' in link_low:
+            continue
+        # Allow whitelisted blockchain/tronscan links
+        if any(link_low.startswith(wl) for wl in whitelist):
+            continue
+        # Otherwise: forbidden external link
+        return True
+    return False
+
+
 # --- Message & Reply/Album/Forward Mapping ---
 media_group_cache = defaultdict(list)
 media_group_timestamps = {}
@@ -326,6 +351,21 @@ async def my_handler(event):
 
             # --- Single message/media/forwarded ---
             for dst in destinations:
+
+                # --- ADD THIS BLOCK: SKIP POST IF IT HAS FORBIDDEN LINKS ---
+                # Collect all text to check for links (message, text, caption)
+                text_to_check = ""
+                if msg.message:
+                    text_to_check += msg.message + " "
+                if hasattr(msg, "text") and msg.text:
+                    text_to_check += msg.text + " "
+                if hasattr(msg, "caption") and msg.caption:
+                    text_to_check += msg.caption + " "
+
+                if should_skip_due_to_links(text_to_check):
+                    print(f"Skipped post for user {user_id} to {dst}: contains non-whitelisted external link.")
+                    continue
+
                 try:
                     reply_to = None
                     if msg.reply_to_msg_id:
