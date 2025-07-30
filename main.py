@@ -44,7 +44,12 @@ def get_settings(user_id):
             "lang": "en",
             "username": "",
             "active": True,
+            "allow_forwarded": True,
         }
+        save_user_settings(settings)
+    # ADD THIS in case you're updating a bot that already has users
+    if "allow_forwarded" not in settings[str(user_id)]:
+        settings[str(user_id)]["allow_forwarded"] = True
         save_user_settings(settings)
     return settings[str(user_id)]
 
@@ -58,7 +63,10 @@ def update_settings(user_id, **kwargs):
             "lang": "en",
             "username": "",
             "active": True,
+            "allow_forwarded": True,
         }
+    if "allow_forwarded" not in settings[user_id]:
+        settings[user_id]["allow_forwarded"] = True
     for k, v in kwargs.items():
         if k in ["src", "dst"] and isinstance(v, list):
             settings[user_id][k] = v
@@ -194,9 +202,21 @@ async def handle_dm_command(event):
             "👉 `/setusername @user` - Set username\n"
             "👉 `/startforwarding` - Enable forwarding\n"
             "👉 `/stopforwarding` - Disable forwarding\n"
+            "👉 `/allowforwarded on` - Allow 'forwarded from' posts\n"
+            "👉 `/allowforwarded off` - Block 'forwarded from' posts\n"
             "👉 `/status` - Show status\n"
             "\n*Paste or tap, then edit and send your values.*"
         )
+    elif text_lower.startswith('/allowforwarded'):
+        val = text_lower.replace('/allowforwarded', '').strip()
+        if val in ['on', 'yes', 'true']:
+            update_settings(user_id, allow_forwarded=True)
+            await event.reply("✅ 'Forwarded from' posts will now be forwarded.")
+        elif val in ['off', 'no', 'false']:
+            update_settings(user_id, allow_forwarded=False)
+            await event.reply("⛔️ 'Forwarded from' posts will NOT be forwarded.")
+        else:
+            await event.reply("Usage: `/allowforwarded on` or `/allowforwarded off`")
     elif text_lower.startswith('/setsrc '):
         parts = text[8:].replace(',', ' ').split()
         sources = [clean_username(p) for p in parts if p]
@@ -230,6 +250,7 @@ async def handle_dm_command(event):
             f"Language: {conf.get('lang')}\n"
             f"Username: {conf.get('username')}\n"
             f"Active: {conf.get('active')}\n"
+            f"Allow Forwarded: {conf.get('allow_forwarded', True)}\n"
         )
         await event.reply(msg, parse_mode='markdown')
 
@@ -278,6 +299,7 @@ async def my_handler(event):
             continue
         sources = conf.get("src", [])
         destinations = conf.get("dst", [])
+        allow_forwarded = conf.get("allow_forwarded", True)
         if src_username.lower() in [s.lower() for s in sources]:
             lang = conf.get("lang", "en")
             username = conf.get("username", "@username")
@@ -318,6 +340,9 @@ async def my_handler(event):
                         print(f"Forward album error to {dst}: {e}")
 
             async def send_album_as_natively_forwarded(dst, album_events):
+                if not allow_forwarded:
+                    print(f"Skipped forwarded album for user {user_id} to {dst}: 'allow_forwarded' is off.")
+                    return
                 album_events.sort(key=lambda e: e.id)
                 for e in album_events:
                     m = e.message
@@ -340,7 +365,11 @@ async def my_handler(event):
                     if not album_events:
                         return
                     for dst in destinations:
+                        # If any part of the album is forwarded and allow_forwarded is False, skip whole album
                         if any(getattr(e.message, "fwd_from", None) for e in album_events):
+                            if not allow_forwarded:
+                                print(f"Skipped forwarded album for user {user_id} to {dst}: 'allow_forwarded' is off.")
+                                continue
                             await send_album_as_natively_forwarded(dst, album_events)
                         else:
                             await send_album(dst, album_events)
@@ -351,9 +380,12 @@ async def my_handler(event):
 
             # --- Single message/media/forwarded ---
             for dst in destinations:
+                # SKIP POST IF IT'S A FORWARDED POST AND FORWARDING IS DISABLED
+                if getattr(msg, "fwd_from", None) and not allow_forwarded:
+                    print(f"Skipped forwarded-from post for user {user_id} to {dst}: 'allow_forwarded' is off.")
+                    continue
 
                 # --- ADD THIS BLOCK: SKIP POST IF IT HAS FORBIDDEN LINKS ---
-                # Collect all text to check for links (message, text, caption)
                 text_to_check = ""
                 if msg.message:
                     text_to_check += msg.message + " "
@@ -378,7 +410,6 @@ async def my_handler(event):
                         reply_map[(event.chat_id, msg.id)] = sent_id
                     # --- Media file (photo/doc/video/audio...) ---
                     elif msg.media:
-                        # If it's a web page preview, treat as text!
                         if isinstance(msg.media, MessageMediaWebPage):
                             final_text = process_caption_or_text(msg.message, username=username, lang=lang)
                             sent = await client.send_message(dst, final_text, parse_mode='html', reply_to=reply_to)
@@ -389,13 +420,11 @@ async def my_handler(event):
                         sent = await client.send_file(dst, msg.media, caption=final_caption, parse_mode='html', reply_to=reply_to)
                         sent_id = sent[0].id if isinstance(sent, list) else sent.id
                         reply_map[(event.chat_id, msg.id)] = sent_id
-                    # --- Plain text ---
                     elif msg.message:
                         final_text = process_caption_or_text(msg.message, username=username, lang=lang)
                         sent = await client.send_message(dst, final_text, parse_mode='html', reply_to=reply_to)
                         sent_id = sent[0].id if isinstance(sent, list) else sent.id
                         reply_map[(event.chat_id, msg.id)] = sent_id
-                    # --- Fallback: native forward ---
                     else:
                         sent = await client.forward_messages(dst, msg)
                         sent_id = sent[0].id if isinstance(sent, list) else sent.id
@@ -403,6 +432,7 @@ async def my_handler(event):
                     print(f"Forwarded from {src_username} to {dst} (reply_to {reply_to})")
                 except Exception as e:
                     print(f"Forward error for user {user_id} to {dst}: {e}")
+
 
 # --- Message Edit Mirroring ---
 @client.on(events.MessageEdited)
