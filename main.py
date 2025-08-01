@@ -282,7 +282,7 @@ def should_skip_due_to_links(text):
 # --- Message & Reply/Album/Forward Mapping ---
 media_group_cache = defaultdict(list)
 media_group_timestamps = {}
-reply_map = {}  # (src_chat_id, src_msg_id) => dst_msg_id
+reply_map = {}  # (src_chat_id, src_msg_id, dst_chat_id) => dst_msg_id
 
 @client.on(events.NewMessage)
 async def my_handler(event):
@@ -320,7 +320,7 @@ async def my_handler(event):
                         if idx == 0:
                             caption = process_caption_or_text(m.message, username=username, lang=lang) if m.message else None
                             if m.reply_to_msg_id:
-                                key = (e.chat_id, m.reply_to_msg_id)
+                                key = (e.chat_id, m.reply_to_msg_id, dst)
                                 reply_to = reply_map.get(key)
                 if files:
                     try:
@@ -349,7 +349,7 @@ async def my_handler(event):
                     try:
                         sent = await client.forward_messages(dst, m)
                         sent_id = sent[0].id if isinstance(sent, list) else sent.id
-                        reply_map[(e.chat_id, m.id)] = sent_id
+                        reply_map[(e.chat_id, m.id, dst)] = sent.id
                     except Exception as e:
                         print(f"Native forward album part error: {e}")
 
@@ -401,34 +401,34 @@ async def my_handler(event):
                 try:
                     reply_to = None
                     if msg.reply_to_msg_id:
-                        key = (event.chat_id, msg.reply_to_msg_id)
+                        key = (event.chat_id, msg.reply_to_msg_id, dst)
                         reply_to = reply_map.get(key)
                     # --- Native forwarded message ---
                     if getattr(msg, "fwd_from", None):
                         sent = await client.forward_messages(dst, msg)
                         sent_id = sent[0].id if isinstance(sent, list) else sent.id
-                        reply_map[(event.chat_id, msg.id)] = sent_id
+                        reply_map[(event.chat_id, msg.id, dst)] = sent_id
                     # --- Media file (photo/doc/video/audio...) ---
                     elif msg.media:
                         if isinstance(msg.media, MessageMediaWebPage):
                             final_text = process_caption_or_text(msg.message, username=username, lang=lang)
                             sent = await client.send_message(dst, final_text, parse_mode='html', reply_to=reply_to)
                             sent_id = sent[0].id if isinstance(sent, list) else sent.id
-                            reply_map[(event.chat_id, msg.id)] = sent_id
+                            reply_map[(event.chat_id, msg.id, dst)] = sent_id
                             continue
                         final_caption = process_caption_or_text(msg.message, username=username, lang=lang) if msg.message else None
                         sent = await client.send_file(dst, msg.media, caption=final_caption, parse_mode='html', reply_to=reply_to)
                         sent_id = sent[0].id if isinstance(sent, list) else sent.id
-                        reply_map[(event.chat_id, msg.id)] = sent_id
+                        reply_map[(event.chat_id, msg.id, dst)] = sent_id
                     elif msg.message:
                         final_text = process_caption_or_text(msg.message, username=username, lang=lang)
                         sent = await client.send_message(dst, final_text, parse_mode='html', reply_to=reply_to)
                         sent_id = sent[0].id if isinstance(sent, list) else sent.id
-                        reply_map[(event.chat_id, msg.id)] = sent_id
+                        reply_map[(event.chat_id, msg.id, dst)] = sent_id
                     else:
                         sent = await client.forward_messages(dst, msg)
                         sent_id = sent[0].id if isinstance(sent, list) else sent.id
-                        reply_map[(event.chat_id, msg.id)] = sent_id
+                        reply_map[(event.chat_id, msg.id, dst)] = sent_id
                     print(f"Forwarded from {src_username} to {dst} (reply_to {reply_to})")
                 except Exception as e:
                     print(f"Forward error for user {user_id} to {dst}: {e}")
