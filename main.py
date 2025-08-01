@@ -448,7 +448,7 @@ async def edit_handler(event):
         username = conf.get("username", "@username")
         lang = conf.get("lang", "en")
         for dst in conf.get("dst", []):
-            dst_msg_id = reply_map.get((src_chat_id, msg_id))
+            dst_msg_id = reply_map.get((src_chat_id, msg_id, dst))
             if not dst_msg_id:
                 continue
             try:
