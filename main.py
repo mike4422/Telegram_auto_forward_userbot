@@ -6,12 +6,64 @@ import time
 from collections import defaultdict
 from telethon import TelegramClient, events
 from telethon.tl.types import MessageMediaWebPage
+from collections import defaultdict, deque
+import heapq
+from itertools import count
+heap_counter = count()
+
+destination_queues = {}         # dst_chat_id: heapq [(timestamp, jobdict)]
+destination_queue_tasks = {}    # dst_chat_id: asyncio.Task
+destination_queue_locks = {}    # dst_chat_id: asyncio.Lock
+
+def queue_forward_job(dst, timestamp, job):
+    if dst not in destination_queues:
+        destination_queues[dst] = []
+        destination_queue_locks[dst] = asyncio.Lock()
+    heapq.heappush(destination_queues[dst], (timestamp, next(heap_counter), job))
+
+async def destination_queue_worker(dst):
+    while True:
+        await asyncio.sleep(0.1)
+        if dst not in destination_queues:
+            continue
+        async with destination_queue_locks[dst]:
+            if destination_queues[dst]:
+                timestamp, _, job = heapq.heappop(destination_queues[dst])
+                try:
+                    await job['func'](*job['args'], **job['kwargs'])
+                except Exception as e:
+                    print(f"Destination queue error for {dst}: {e}")
+
 
 API_ID = 26376666  # <-- Your api_id here
 API_HASH = '61ee2def31a7a12026ecfa1c72474489'
 PHONE_NUMBER = '+14053131520'  # <-- Your phone number
 
 SETTINGS_FILE = "user_settings.json"
+
+outbound_queues = defaultdict(asyncio.Queue)  # dest_id -> queue of (timestamp, coroutine)
+queue_workers_started = set()
+
+
+async def enqueue_forward_job(dst, job):
+    # Each job is a (timestamp, coroutine)
+    await outbound_queues[dst].put(job)
+    # Start worker if not running
+    if dst not in queue_workers_started:
+        asyncio.create_task(forward_worker(dst))
+        queue_workers_started.add(dst)
+
+async def forward_worker(dst):
+    while True:
+        job = await outbound_queues[dst].get()
+        ts, coro = job
+        try:
+            await coro
+        except Exception as e:
+            print(f"Forward queue worker error for {dst}: {e}")
+        outbound_queues[dst].task_done()
+
+
 
 # --- Utility: Username Cleaning ---
 def clean_username(u):
@@ -278,6 +330,23 @@ def should_skip_due_to_links(text):
         return True
     return False
 
+def has_forbidden_forwarded_link(text):
+    if not text:
+        return False
+    # Any t.me/username or http(s)://t.me/username
+    if re.search(r'(https?://)?(www\.)?t\.me/@?[a-zA-Z0-9_]{4,}', text, flags=re.IGNORECASE):
+        return True
+    # Any http(s):// or www.
+    if re.search(r'(https?://\S+|www\.\S+)', text, flags=re.IGNORECASE):
+        return True
+    # Any @mention that is NOT 4 digits after the @
+    for match in re.finditer(r'(?<![\w.])@([a-zA-Z0-9_]{4,})', text):
+        username = match.group(1)
+        if not username[:4].isdigit():
+            return True
+    return False
+
+
 
 # --- Message & Reply/Album/Forward Mapping ---
 media_group_cache = defaultdict(list)
@@ -344,6 +413,21 @@ async def my_handler(event):
                     print(f"Skipped forwarded album for user {user_id} to {dst}: 'allow_forwarded' is off.")
                     return
                 album_events.sort(key=lambda e: e.id)
+                # -- ADD THIS BLOCK TO CHECK ALL PARTS FOR FORBIDDEN CONTENT --
+                for e in album_events:
+                    m = e.message
+                    text_to_check = ""
+                    if m.message:
+                        text_to_check += m.message + " "
+                    if hasattr(m, "text") and m.text:
+                        text_to_check += m.text + " "
+                    if hasattr(m, "caption") and m.caption:
+                        text_to_check += m.caption + " "
+                    if has_forbidden_forwarded_link(text_to_check):
+                        print(f"Skipped forwarded album for {dst}: forbidden @username, t.me, or link found.")
+                        await asyncio.sleep(0)  # just yield, but don't forward
+                        return
+                # -- END BLOCK --
                 for e in album_events:
                     m = e.message
                     try:
@@ -358,27 +442,45 @@ async def my_handler(event):
                 media_group_cache[group_id].append(event)
                 media_group_timestamps[group_id] = time.time()
 
-                async def send_album_later(group_id, destinations):
+                async def handle_album_enqueue(group_id, destinations):
                     await asyncio.sleep(1.7)
                     album_events = media_group_cache.pop(group_id, [])
                     media_group_timestamps.pop(group_id, None)
                     if not album_events:
                         return
                     for dst in destinations:
-                        # If any part of the album is forwarded and allow_forwarded is False, skip whole album
+                        # Decide function/callback for album
                         if any(getattr(e.message, "fwd_from", None) for e in album_events):
-                            if not allow_forwarded:
-                                print(f"Skipped forwarded album for user {user_id} to {dst}: 'allow_forwarded' is off.")
-                                continue
-                            await send_album_as_natively_forwarded(dst, album_events)
+                            # Get minimum (oldest) date for album
+                            ts = min(e.message.date.timestamp() for e in album_events)
+                            queue_forward_job(
+                                dst, ts,
+                                {
+                                    'func': send_album_as_natively_forwarded,
+                                    'args': (dst, album_events),
+                                    'kwargs': {},
+                                }
+                            )
                         else:
-                            await send_album(dst, album_events)
+                            ts = min(e.message.date.timestamp() for e in album_events)
+                            queue_forward_job(
+                                dst, ts,
+                                {
+                                    'func': send_album,
+                                    'args': (dst, album_events),
+                                    'kwargs': {},
+                                }
+                            )
+                        # Launch the worker if not already
+                        if dst not in destination_queue_tasks:
+                            destination_queue_tasks[dst] = asyncio.create_task(destination_queue_worker(dst))
 
+                # Only start the timer once per new album
                 if len(media_group_cache[group_id]) == 1:
-                    asyncio.create_task(send_album_later(group_id, destinations))
+                    asyncio.create_task(handle_album_enqueue(group_id, destinations))
                 return
 
-            # --- Single message/media/forwarded ---
+            # --- Single messages: enqueue instead of direct send ---
             for dst in destinations:
                 # SKIP POST IF IT'S A FORWARDED POST AND FORWARDING IS DISABLED
                 if getattr(msg, "fwd_from", None) and not allow_forwarded:
@@ -398,26 +500,40 @@ async def my_handler(event):
                     print(f"Skipped post for user {user_id} to {dst}: contains non-whitelisted external link.")
                     continue
 
-                try:
+                # Build send function
+                async def do_forward_single(dst, msg=msg, event=event, user_id=user_id, lang=lang, username=username):
                     reply_to = None
                     if msg.reply_to_msg_id:
                         key = (event.chat_id, msg.reply_to_msg_id, dst)
                         reply_to = reply_map.get(key)
                     # --- Native forwarded message ---
                     if getattr(msg, "fwd_from", None):
+                        text_to_check = ""
+                        if msg.message:
+                            text_to_check += msg.message + " "
+                        if hasattr(msg, "text") and msg.text:
+                            text_to_check += msg.text + " "
+                        if hasattr(msg, "caption") and msg.caption:
+                            text_to_check += msg.caption + " "
+                        if has_forbidden_forwarded_link(text_to_check):
+                            print(f"Skipped forwarded-from post to {dst}: forbidden @username, t.me, or link found.")
+                            await asyncio.sleep(0)  # just yield, don't break order!
+                            return
+
                         sent = await client.forward_messages(dst, msg)
                         sent_id = sent[0].id if isinstance(sent, list) else sent.id
                         reply_map[(event.chat_id, msg.id, dst)] = sent_id
-                    # --- Media file (photo/doc/video/audio...) ---
                     elif msg.media:
                         if isinstance(msg.media, MessageMediaWebPage):
                             final_text = process_caption_or_text(msg.message, username=username, lang=lang)
                             sent = await client.send_message(dst, final_text, parse_mode='html', reply_to=reply_to)
                             sent_id = sent[0].id if isinstance(sent, list) else sent.id
                             reply_map[(event.chat_id, msg.id, dst)] = sent_id
-                            continue
-                        final_caption = process_caption_or_text(msg.message, username=username, lang=lang) if msg.message else None
-                        sent = await client.send_file(dst, msg.media, caption=final_caption, parse_mode='html', reply_to=reply_to)
+                            return
+                        final_caption = process_caption_or_text(msg.message, username=username,
+                                                                lang=lang) if msg.message else None
+                        sent = await client.send_file(dst, msg.media, caption=final_caption, parse_mode='html',
+                                                      reply_to=reply_to)
                         sent_id = sent[0].id if isinstance(sent, list) else sent.id
                         reply_map[(event.chat_id, msg.id, dst)] = sent_id
                     elif msg.message:
@@ -430,8 +546,19 @@ async def my_handler(event):
                         sent_id = sent[0].id if isinstance(sent, list) else sent.id
                         reply_map[(event.chat_id, msg.id, dst)] = sent_id
                     print(f"Forwarded from {src_username} to {dst} (reply_to {reply_to})")
-                except Exception as e:
-                    print(f"Forward error for user {user_id} to {dst}: {e}")
+
+                # Enqueue job
+                ts = msg.date.timestamp()
+                queue_forward_job(
+                    dst, ts,
+                    {
+                        'func': do_forward_single,
+                        'args': (dst,),
+                        'kwargs': {},
+                    }
+                )
+                if dst not in destination_queue_tasks:
+                    destination_queue_tasks[dst] = asyncio.create_task(destination_queue_worker(dst))
 
 
 # --- Message Edit Mirroring ---
