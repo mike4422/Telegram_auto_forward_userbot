@@ -9,6 +9,8 @@ from telethon.tl.types import MessageMediaWebPage
 from collections import defaultdict, deque
 import heapq
 from itertools import count
+from telethon.tl.custom import Button
+
 heap_counter = count()
 
 destination_queues = {}         # dst_chat_id: heapq [(timestamp, jobdict)]
@@ -75,6 +77,12 @@ def clean_username(u):
     elif u.startswith("t.me/"):
         u = u.replace("t.me/", "")
     return u.lstrip("@")
+
+def replace_wa_me_link(text, username="@username"):
+    if not text:
+        return text
+    return re.sub(r'(https?://)?(www\.)?wa\.me/\S+', "___WA_ME_TELEGRAM_LINK___", text, flags=re.IGNORECASE)
+
 
 # --- Settings Handling ---
 def load_user_settings():
@@ -225,10 +233,41 @@ def process_caption_or_text(txt, username=None, lang=None):
         username = "@username"
     if not lang:
         lang = "en"
-    cleaned = clean_text(txt, username=username)
+    replaced = replace_wa_me_link(txt, username=username)
+    cleaned = clean_text(replaced, username=username)
     translated = translate_preserving_usernames(cleaned, dest=lang)
     final = force_link_usernames(translated)
+    dest_no_at = username.lstrip("@")
+    html_link = f'<a href="https://t.me/{dest_no_at}">{username}</a>'
+    final = final.replace("___WA_ME_TELEGRAM_LINK___", html_link)
     return final
+
+def rewrite_buttons(reply_markup, username):
+    """
+    Returns new reply_markup with all buttons changed to "CONTACT ME" -> https://t.me/<username>
+    """
+    if not reply_markup or not hasattr(reply_markup, 'rows'):
+        return None
+
+    dest_no_at = username.lstrip('@')
+    link = f"https://t.me/{dest_no_at}"
+
+    new_buttons = []
+    for row in reply_markup.rows:
+        button_row = []
+        for btn in row.buttons:
+            # Only replace URL buttons, ignore others
+            if hasattr(btn, 'url') and btn.url:
+                button_row.append(Button.url("CONTACT ME", link))
+            else:
+                # For non-url buttons, you could ignore or keep them, here we ignore.
+                continue
+        if button_row:
+            new_buttons.append(button_row)
+    if new_buttons:
+        return new_buttons
+    return None
+
 
 # --- Userbot Setup ---
 client = TelegramClient('userbot_session', API_ID, API_HASH)
@@ -380,6 +419,7 @@ async def my_handler(event):
                 caption = None
                 reply_to = None
                 src_ids = []
+                final_reply_markup = None
                 for idx, e in enumerate(album_events):
                     m = e.message
                     file = m.photo or m.document
@@ -387,7 +427,11 @@ async def my_handler(event):
                         files.append(file)
                         src_ids.append((e.chat_id, m.id))
                         if idx == 0:
-                            caption = process_caption_or_text(m.message, username=username, lang=lang) if m.message else None
+                            caption = process_caption_or_text(m.message, username=username,
+                                                              lang=lang) if m.message else None
+                            # --- HANDLE BUTTONS ON FIRST CAPTION ONLY ---
+                            if hasattr(m, "reply_markup") and m.reply_markup:
+                                final_reply_markup = rewrite_buttons(m.reply_markup, username)
                             if m.reply_to_msg_id:
                                 key = (e.chat_id, m.reply_to_msg_id, dst)
                                 reply_to = reply_map.get(key)
@@ -398,7 +442,8 @@ async def my_handler(event):
                             files,
                             caption=caption,
                             parse_mode='html',
-                            reply_to=reply_to
+                            reply_to=reply_to,
+                            buttons=final_reply_markup  # <<<< ADD THIS ARGUMENT
                         )
                         if not isinstance(sent_list, list):
                             sent_list = [sent_list]
@@ -449,9 +494,31 @@ async def my_handler(event):
                     if not album_events:
                         return
                     for dst in destinations:
+                        # --- BLOCK THE ALBUM IF ANY PART HAS FORBIDDEN LINK ---
+                        forbidden = False
+                        for e in album_events:
+                            m = e.message
+                            text_to_check = ""
+                            if m.message:
+                                text_to_check += m.message + " "
+                            if hasattr(m, "text") and m.text:
+                                text_to_check += m.text + " "
+                            if hasattr(m, "caption") and m.caption:
+                                text_to_check += m.caption + " "
+
+                            # --- ADD THIS LINE ---
+                            text_to_check = replace_wa_me_link(text_to_check, username=username)
+
+                            if should_skip_due_to_links(text_to_check):
+                                forbidden = True
+                                break
+                        if forbidden:
+                            print(
+                                f"Skipped album for destination {dst}: contains non-whitelisted external link in at least one media/caption.")
+                            continue
+
                         # Decide function/callback for album
                         if any(getattr(e.message, "fwd_from", None) for e in album_events):
-                            # Get minimum (oldest) date for album
                             ts = min(e.message.date.timestamp() for e in album_events)
                             queue_forward_job(
                                 dst, ts,
@@ -496,6 +563,9 @@ async def my_handler(event):
                 if hasattr(msg, "caption") and msg.caption:
                     text_to_check += msg.caption + " "
 
+                # --- ADD THIS LINE ---
+                text_to_check = replace_wa_me_link(text_to_check, username=username)
+
                 if should_skip_due_to_links(text_to_check):
                     print(f"Skipped post for user {user_id} to {dst}: contains non-whitelisted external link.")
                     continue
@@ -532,13 +602,33 @@ async def my_handler(event):
                             return
                         final_caption = process_caption_or_text(msg.message, username=username,
                                                                 lang=lang) if msg.message else None
-                        sent = await client.send_file(dst, msg.media, caption=final_caption, parse_mode='html',
-                                                      reply_to=reply_to)
+                        final_reply_markup = None
+                        if hasattr(msg, "reply_markup") and msg.reply_markup:
+                            final_reply_markup = rewrite_buttons(msg.reply_markup, username)
+                        sent = await client.send_file(
+                            dst,
+                            msg.media,
+                            caption=final_caption,
+                            parse_mode='html',
+                            reply_to=reply_to,
+                            buttons=final_reply_markup
+                        )
+
                         sent_id = sent[0].id if isinstance(sent, list) else sent.id
                         reply_map[(event.chat_id, msg.id, dst)] = sent_id
                     elif msg.message:
                         final_text = process_caption_or_text(msg.message, username=username, lang=lang)
-                        sent = await client.send_message(dst, final_text, parse_mode='html', reply_to=reply_to)
+                        final_reply_markup = None
+                        if hasattr(msg, "reply_markup") and msg.reply_markup:
+                            final_reply_markup = rewrite_buttons(msg.reply_markup, username)
+                        sent = await client.send_message(
+                            dst,
+                            final_text,
+                            parse_mode='html',
+                            reply_to=reply_to,
+                            buttons=final_reply_markup
+                        )
+
                         sent_id = sent[0].id if isinstance(sent, list) else sent.id
                         reply_map[(event.chat_id, msg.id, dst)] = sent_id
                     else:

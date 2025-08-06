@@ -1,7 +1,7 @@
 {
   "7939341331": {
     "src": [
-      "Trade_wit_Nia11",
+      "savvy_traders_signal11",
       "goldfx_signalls",
       "gold_fx_signals_testing"
     ],
@@ -14,10 +14,52 @@
     "allow_forwarded": true
   },
   "5735637050": {
-    "src": [],
-    "dst": [],
+    "src": [
+      "goldsignals_ioz0"
+    ],
+    "dst": [
+      "Gold_btc_vip_signals"
+    ],
     "lang": "en",
-    "username": "",
-    "active": true
+    "username": "@Goldfxadminl",
+    "active": true,
+    "allow_forwarded": false
+  },
+  "8213109925": {
+    "src": [
+      "Signalscrypto_Trade"
+    ],
+    "dst": [
+      "nitrotrades10"
+    ],
+    "lang": "en",
+    "username": "@nitrotradesofficials",
+    "active": true,
+    "allow_forwarded": true
+  },
+  "8235469099": {
+    "src": [
+      "Trade_wit_Nia1",
+      "Signalscrypto_Trade"
+    ],
+    "dst": [
+      "BenjaminCowenTelegrams"
+    ],
+    "lang": "en",
+    "username": "@CowenBenjamins",
+    "active": true,
+    "allow_forwarded": true
+  },
+  "7777501659": {
+    "src": [
+      "goldmastermikef"
+    ],
+    "dst": [
+      "mikegoldmaster4"
+    ],
+    "lang": "en",
+    "username": "@Mikegoldmasterofficials",
+    "active": true,
+    "allow_forwarded": true
   }
 }
