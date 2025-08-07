@@ -17,6 +17,15 @@ destination_queues = {}         # dst_chat_id: heapq [(timestamp, jobdict)]
 destination_queue_tasks = {}    # dst_chat_id: asyncio.Task
 destination_queue_locks = {}    # dst_chat_id: asyncio.Lock
 
+SEO_HASHTAGS = "#CryptoSignals #Futures #Spot #Trading #Bitcoin #Ethereum #Altcoins #SignalsVIP #CryptoTrading"
+
+def add_seo_hashtags(text):
+    text = text or ""
+    if SEO_HASHTAGS in text:
+        return text  # avoid double
+    return text.rstrip() + "\n\n" + SEO_HASHTAGS
+
+
 def queue_forward_job(dst, timestamp, job):
     if dst not in destination_queues:
         destination_queues[dst] = []
@@ -84,6 +93,16 @@ def replace_wa_me_link(text, username="@username"):
     return re.sub(r'(https?://)?(www\.)?wa\.me/\S+', "___WA_ME_TELEGRAM_LINK___", text, flags=re.IGNORECASE)
 
 
+def users_for_source_channel(src_username):
+    settings = load_user_settings()
+    results = []
+    for user_id, conf in settings.items():
+        sources = conf.get("src", [])
+        if src_username.lower() in [s.lower() for s in sources]:
+            results.append((user_id, conf))
+    return results
+
+
 # --- Settings Handling ---
 def load_user_settings():
     if not os.path.exists(SETTINGS_FILE):
@@ -105,11 +124,15 @@ def get_settings(user_id):
             "username": "",
             "active": True,
             "allow_forwarded": True,
+            "use_seo_hashtags": False,
         }
         save_user_settings(settings)
     # ADD THIS in case you're updating a bot that already has users
     if "allow_forwarded" not in settings[str(user_id)]:
         settings[str(user_id)]["allow_forwarded"] = True
+        save_user_settings(settings)
+    if "use_seo_hashtags" not in settings[str(user_id)]:
+        settings[str(user_id)]["use_seo_hashtags"] = False
         save_user_settings(settings)
     return settings[str(user_id)]
 
@@ -124,9 +147,12 @@ def update_settings(user_id, **kwargs):
             "username": "",
             "active": True,
             "allow_forwarded": True,
+            "use_seo_hashtags": False,
         }
     if "allow_forwarded" not in settings[user_id]:
         settings[user_id]["allow_forwarded"] = True
+    if "use_seo_hashtags" not in settings[user_id]:
+        settings[user_id]["use_seo_hashtags"] = False
     for k, v in kwargs.items():
         if k in ["src", "dst"] and isinstance(v, list):
             settings[user_id][k] = v
@@ -295,6 +321,8 @@ async def handle_dm_command(event):
             "👉 `/stopforwarding` - Disable forwarding\n"
             "👉 `/allowforwarded on` - Allow 'forwarded from' posts\n"
             "👉 `/allowforwarded off` - Block 'forwarded from' posts\n"
+            "👉 `/seo_hashtags on` - Add SEO hashtags to all posts\n"
+            "👉 `/seo_hashtags off` - Do not add hashtags\n"
             "👉 `/status` - Show status\n"
             "\n*Paste or tap, then edit and send your values.*"
         )
@@ -332,6 +360,16 @@ async def handle_dm_command(event):
     elif text_lower.startswith('/stopforwarding'):
         update_settings(user_id, active=False)
         await event.reply("⛔️ Forwarding DISABLED.")
+    elif text_lower.startswith('/seo_hashtags'):
+        val = text_lower.replace('/seo_hashtags', '').strip()
+        if val in ['on', 'yes', 'true']:
+            update_settings(user_id, use_seo_hashtags=True)
+            await event.reply("✅ SEO hashtags will be added to your posts.")
+        elif val in ['off', 'no', 'false']:
+            update_settings(user_id, use_seo_hashtags=False)
+            await event.reply("⛔️ SEO hashtags will not be added to your posts.")
+        else:
+            await event.reply("Usage: `/seo_hashtags on` or `/seo_hashtags off`")
     elif text_lower.startswith('/status'):
         conf = get_settings(user_id)
         msg = (
@@ -342,6 +380,7 @@ async def handle_dm_command(event):
             f"Username: {conf.get('username')}\n"
             f"Active: {conf.get('active')}\n"
             f"Allow Forwarded: {conf.get('allow_forwarded', True)}\n"
+            f"SEO Hashtags: {'ON' if conf.get('use_seo_hashtags', False) else 'OFF'}\n"
         )
         await event.reply(msg, parse_mode='markdown')
 
@@ -429,6 +468,9 @@ async def my_handler(event):
                         if idx == 0:
                             caption = process_caption_or_text(m.message, username=username,
                                                               lang=lang) if m.message else None
+                            if conf.get("use_seo_hashtags", False) and caption:
+                                caption = add_seo_hashtags(caption)
+
                             # --- HANDLE BUTTONS ON FIRST CAPTION ONLY ---
                             if hasattr(m, "reply_markup") and m.reply_markup:
                                 final_reply_markup = rewrite_buttons(m.reply_markup, username)
@@ -602,6 +644,9 @@ async def my_handler(event):
                             return
                         final_caption = process_caption_or_text(msg.message, username=username,
                                                                 lang=lang) if msg.message else None
+                        if conf.get("use_seo_hashtags", False) and final_caption:
+                            final_caption = add_seo_hashtags(final_caption)
+
                         final_reply_markup = None
                         if hasattr(msg, "reply_markup") and msg.reply_markup:
                             final_reply_markup = rewrite_buttons(msg.reply_markup, username)
@@ -616,8 +661,11 @@ async def my_handler(event):
 
                         sent_id = sent[0].id if isinstance(sent, list) else sent.id
                         reply_map[(event.chat_id, msg.id, dst)] = sent_id
-                    elif msg.message:
+                    elif msg.message and not msg.media:
                         final_text = process_caption_or_text(msg.message, username=username, lang=lang)
+                        print(f"[DEBUG] SEO hashtags ON? {conf.get('use_seo_hashtags', False)} For user {user_id}")
+                        if conf.get("use_seo_hashtags", False) and final_text:
+                            final_text = add_seo_hashtags(final_text)
                         final_reply_markup = None
                         if hasattr(msg, "reply_markup") and msg.reply_markup:
                             final_reply_markup = rewrite_buttons(msg.reply_markup, username)
@@ -628,7 +676,6 @@ async def my_handler(event):
                             reply_to=reply_to,
                             buttons=final_reply_markup
                         )
-
                         sent_id = sent[0].id if isinstance(sent, list) else sent.id
                         reply_map[(event.chat_id, msg.id, dst)] = sent_id
                     else:

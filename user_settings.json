@@ -11,7 +11,8 @@
     "lang": "en",
     "username": "@Cryptogoldsignals_admin",
     "active": true,
-    "allow_forwarded": true
+    "allow_forwarded": true,
+    "use_seo_hashtags": true
   },
   "5735637050": {
     "src": [
@@ -23,7 +24,8 @@
     "lang": "en",
     "username": "@Goldfxadminl",
     "active": true,
-    "allow_forwarded": false
+    "allow_forwarded": false,
+    "use_seo_hashtags": false
   },
   "8213109925": {
     "src": [
@@ -35,7 +37,8 @@
     "lang": "en",
     "username": "@nitrotradesofficials",
     "active": true,
-    "allow_forwarded": true
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
   },
   "8235469099": {
     "src": [
@@ -48,7 +51,8 @@
     "lang": "en",
     "username": "@CowenBenjamins",
     "active": true,
-    "allow_forwarded": true
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
   },
   "7777501659": {
     "src": [
@@ -60,6 +64,7 @@
     "lang": "en",
     "username": "@Mikegoldmasterofficials",
     "active": true,
-    "allow_forwarded": true
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
   }
 }
