@@ -530,13 +530,37 @@ async def my_handler(event):
                 media_group_timestamps[group_id] = time.time()
 
                 async def handle_album_enqueue(group_id, destinations):
-                    await asyncio.sleep(1.7)
+                    """
+                    Wait for the album to be fully received, then process it for all destinations.
+                    Robust against partial/incomplete albums and race conditions.
+                    """
+                    # Wait for more parts of the album, up to 3 seconds max (checks every 0.5s)
+                    last_count = 0
+                    for _ in range(6):  # 6 * 0.5s = 3s max wait
+                        await asyncio.sleep(0.5)
+                        current_count = len(media_group_cache[group_id])
+                        if current_count == last_count:
+                            break  # No new parts arrived since last check, album is done
+                        last_count = current_count
+
                     album_events = media_group_cache.pop(group_id, [])
                     media_group_timestamps.pop(group_id, None)
                     if not album_events:
                         return
+
+                    # The username/lang/other context is inferred from first message's chat
+                    first_event = album_events[0]
+                    src_username = getattr(first_event.chat, 'username', None)
+                    # It's possible you want to pull username/lang from user_settings
+                    settings = load_user_settings()
+                    conf = None
+                    for user_id, c in settings.items():
+                        if src_username and src_username.lower() in [s.lower() for s in c.get("src", [])]:
+                            conf = c
+                            break
+                    username = conf.get("username", "@username") if conf else "@username"
+
                     for dst in destinations:
-                        # --- BLOCK THE ALBUM IF ANY PART HAS FORBIDDEN LINK ---
                         forbidden = False
                         for e in album_events:
                             m = e.message
@@ -581,7 +605,7 @@ async def my_handler(event):
                                 }
                             )
                         # Launch the worker if not already
-                        if dst not in destination_queue_tasks:
+                        if dst not in destination_queue_tasks or destination_queue_tasks[dst].done():
                             destination_queue_tasks[dst] = asyncio.create_task(destination_queue_worker(dst))
 
                 # Only start the timer once per new album
