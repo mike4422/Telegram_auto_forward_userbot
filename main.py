@@ -637,7 +637,10 @@ async def my_handler(event):
                     continue
 
                 # Build send function
-                async def do_forward_single(dst, msg=msg, event=event, user_id=user_id, lang=lang, username=username):
+                async def do_forward_single(dst, msg=msg, event=event, user_id=user_id, lang=lang, username=username, conf=conf):
+                    print(
+                        f"[DEBUG] do_forward_single called for user {user_id} to {dst}, SEO hashtags enabled: {conf.get('use_seo_hashtags', False)}")
+
                     reply_to = None
                     if msg.reply_to_msg_id:
                         key = (event.chat_id, msg.reply_to_msg_id, dst)
@@ -662,6 +665,8 @@ async def my_handler(event):
                     elif msg.media:
                         if isinstance(msg.media, MessageMediaWebPage):
                             final_text = process_caption_or_text(msg.message, username=username, lang=lang)
+                            if conf.get("use_seo_hashtags", False) and final_text:
+                                final_text = add_seo_hashtags(final_text)  # Add SEO hashtags here
                             sent = await client.send_message(dst, final_text, parse_mode='html', reply_to=reply_to)
                             sent_id = sent[0].id if isinstance(sent, list) else sent.id
                             reply_map[(event.chat_id, msg.id, dst)] = sent_id
