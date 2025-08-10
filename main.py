@@ -270,29 +270,39 @@ def process_caption_or_text(txt, username=None, lang=None):
 
 def rewrite_buttons(reply_markup, username):
     """
-    Returns new reply_markup with all buttons changed to "CONTACT ME" -> https://t.me/<username>
+    Replace any URL buttons with a single CONTACT ME button pointing to https://t.me/<username>.
+    If there are no URL buttons at all, still return one CONTACT ME button so we never drop the link.
     """
-    if not reply_markup or not hasattr(reply_markup, 'rows'):
-        return None
-
     dest_no_at = username.lstrip('@')
     link = f"https://t.me/{dest_no_at}"
 
     new_buttons = []
-    for row in reply_markup.rows:
-        button_row = []
-        for btn in row.buttons:
-            # Only replace URL buttons, ignore others
-            if hasattr(btn, 'url') and btn.url:
-                button_row.append(Button.url("CONTACT ME", link))
-            else:
-                # For non-url buttons, you could ignore or keep them, here we ignore.
-                continue
-        if button_row:
-            new_buttons.append(button_row)
-    if new_buttons:
-        return new_buttons
-    return None
+    had_any_url = False
+
+    if reply_markup and hasattr(reply_markup, 'rows'):
+        for row in reply_markup.rows:
+            row_out = []
+            for btn in row.buttons:
+                # URL-like buttons have a .url attribute (e.g., KeyboardButtonUrl)
+                if getattr(btn, 'url', None):
+                    row_out.append(Button.url("CONTACT ME", link))
+                    had_any_url = True
+                # Ignore non-url buttons (callback, etc.)
+            if row_out:
+                new_buttons.append(row_out)
+
+    # If no URL buttons were found (or no buttons at all), still add our own
+    if not new_buttons:
+        new_buttons = [[Button.url("CONTACT ME", link)]]
+
+    # Debug
+    try:
+        print(f"[DEBUG] rewrite_buttons: had_any_url={had_any_url} -> returning_rows={len(new_buttons)}")
+    except Exception:
+        pass
+
+    return new_buttons
+
 
 
 # --- Userbot Setup ---
@@ -584,7 +594,12 @@ async def my_handler(event):
                             continue
 
                         # Decide function/callback for album
-                        if any(getattr(e.message, "fwd_from", None) for e in album_events):
+                        has_forward = any(getattr(e.message, "fwd_from", None) for e in album_events)
+                        has_buttons = any(getattr(e.message, "reply_markup", None) for e in album_events)
+
+                        print(f"[DEBUG][ALBUM] dst={dst} has_forward={has_forward} has_buttons={has_buttons}")
+
+                        if has_forward and not has_buttons:
                             ts = min(e.message.date.timestamp() for e in album_events)
                             queue_forward_job(
                                 dst, ts,
@@ -595,6 +610,7 @@ async def my_handler(event):
                                 }
                             )
                         else:
+                            # If any part has buttons (or not forwarded), re-send so we can rewrite buttons
                             ts = min(e.message.date.timestamp() for e in album_events)
                             queue_forward_job(
                                 dst, ts,
@@ -604,6 +620,7 @@ async def my_handler(event):
                                     'kwargs': {},
                                 }
                             )
+
                         # Launch the worker if not already
                         if dst not in destination_queue_tasks or destination_queue_tasks[dst].done():
                             destination_queue_tasks[dst] = asyncio.create_task(destination_queue_worker(dst))
@@ -645,8 +662,14 @@ async def my_handler(event):
                     if msg.reply_to_msg_id:
                         key = (event.chat_id, msg.reply_to_msg_id, dst)
                         reply_to = reply_map.get(key)
+
                     # --- Native forwarded message ---
-                    if getattr(msg, "fwd_from", None):
+                    is_forward = bool(getattr(msg, "fwd_from", None))
+                    has_buttons = bool(getattr(msg, "reply_markup", None))
+                    print(f"[DEBUG][SINGLE] dst={dst} is_forward={is_forward} has_buttons={has_buttons} -> "
+                          f"{'native-forward' if (is_forward and not has_buttons) else 're-send with rewrite'}")
+
+                    if is_forward and not has_buttons:
                         text_to_check = ""
                         if msg.message:
                             text_to_check += msg.message + " "
@@ -666,8 +689,21 @@ async def my_handler(event):
                         if isinstance(msg.media, MessageMediaWebPage):
                             final_text = process_caption_or_text(msg.message, username=username, lang=lang)
                             if conf.get("use_seo_hashtags", False) and final_text:
-                                final_text = add_seo_hashtags(final_text)  # Add SEO hashtags here
-                            sent = await client.send_message(dst, final_text, parse_mode='html', reply_to=reply_to)
+                                final_text = add_seo_hashtags(final_text)
+
+                            final_reply_markup = None
+                            if hasattr(msg, "reply_markup") and msg.reply_markup:
+                                final_reply_markup = rewrite_buttons(msg.reply_markup, username)
+                                print(
+                                    f"[DEBUG] WebPage: rewrite_buttons: had_buttons={True} -> new_rows={len(final_reply_markup) if final_reply_markup else 0}")
+
+                            sent = await client.send_message(
+                                dst,
+                                final_text,
+                                parse_mode='html',
+                                reply_to=reply_to,
+                                buttons=final_reply_markup
+                            )
                             sent_id = sent[0].id if isinstance(sent, list) else sent.id
                             reply_map[(event.chat_id, msg.id, dst)] = sent_id
                             return
