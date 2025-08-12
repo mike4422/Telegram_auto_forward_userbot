@@ -12,7 +12,7 @@
     "username": "@Cryptogoldsignals_admin",
     "active": true,
     "allow_forwarded": true,
-    "use_seo_hashtags": true
+    "use_seo_hashtags": false
   },
   "5735637050": {
     "src": [
@@ -66,5 +66,18 @@
     "active": true,
     "allow_forwarded": true,
     "use_seo_hashtags": false
+  },
+  "6857690818": {
+    "src": [
+      "savvy_traders_Signal11"
+    ],
+    "dst": [
+      "cryptoFuturesSpotSignals"
+    ],
+    "lang": "en",
+    "username": "@CryptoSignalsPro2",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": true
   }
 }
