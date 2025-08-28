@@ -1,7 +1,7 @@
 {
   "7939341331": {
     "src": [
-      "savvy_traders_signal11",
+      "binance_future_signal01",
       "goldfx_signalls",
       "gold_fx_signals_testing"
     ],
@@ -16,13 +16,14 @@
   },
   "5735637050": {
     "src": [
-      "goldsignals_ioz0"
+      "goldsignals_ioz0",
+      "MIKE_GOLD_MASTERS"
     ],
     "dst": [
       "Gold_btc_vip_signals"
     ],
     "lang": "en",
-    "username": "@Goldfxadminl",
+    "username": "@Mikegoldmasterofficials",
     "active": true,
     "allow_forwarded": false,
     "use_seo_hashtags": false
@@ -38,21 +39,7 @@
     "username": "@nitrotradesofficials",
     "active": true,
     "allow_forwarded": true,
-    "use_seo_hashtags": false
-  },
-  "8235469099": {
-    "src": [
-      "Trade_wit_Nia1",
-      "Signalscrypto_Trade"
-    ],
-    "dst": [
-      "BenjaminCowenTelegrams"
-    ],
-    "lang": "en",
-    "username": "@CowenBenjamins",
-    "active": true,
-    "allow_forwarded": true,
-    "use_seo_hashtags": false
+    "use_seo_hashtags": true
   },
   "7777501659": {
     "src": [
@@ -69,7 +56,7 @@
   },
   "6857690818": {
     "src": [
-      "savvy_traders_Signal11"
+      "vipulkaushikkk"
     ],
     "dst": [
       "cryptoFuturesSpotSignals"
@@ -79,5 +66,137 @@
     "active": true,
     "allow_forwarded": true,
     "use_seo_hashtags": true
+  },
+  "7050482817": {
+    "src": [
+      "signalscrypto_Trade"
+    ],
+    "dst": [
+      "AltcoinDaily_Signals0"
+    ],
+    "lang": "en",
+    "username": "@AltcoinDaily03",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": true
+  },
+  "7479891552": {
+    "src": [
+      "DavinciJeremieTrades",
+      "davincij15_platform",
+      "signalscrypto_trade"
+    ],
+    "dst": [
+      "DavinciJeremie_Trades",
+      "larkdavis_signals"
+    ],
+    "lang": "en",
+    "username": "@DavinciJeremieOfficials",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
+  },
+  "7954408649": {
+    "src": [
+      "Evelynoptionstradera"
+    ],
+    "dst": [
+      "EvelynMorganOptionTrading"
+    ],
+    "lang": "en",
+    "username": "@Evelyn_morgan_officials",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
+  },
+  "7423411245": {
+    "src": [
+      "signalskami7"
+    ],
+    "dst": [
+      "MichaelVanDePoppeCryptos"
+    ],
+    "lang": "en",
+    "username": "@Michael_van_de_poppes",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": true
+  },
+  "7142089503": {
+    "src": [
+      "goldfx_signalls"
+    ],
+    "dst": [
+      "joashnaidoo_sa3"
+    ],
+    "lang": "en",
+    "username": "@joashnaidoo_sa_officiall",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
+  },
+  "7893301101": {
+    "src": [
+      "us30_stocks",
+      "Us30dowjones_Usa_Usoil_Nas100"
+    ],
+    "dst": [
+      "us30_stocks_signals"
+    ],
+    "lang": "en",
+    "username": "@us30_Pro_signal",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
+  },
+  "7469324453": {
+    "src": [
+      "bollingerBandsCrypto11",
+      "goldfx_signalls",
+      "gold_fx_signals_testing"
+    ],
+    "dst": [
+      "crypto_gold_signals0"
+    ],
+    "lang": "en",
+    "username": "@TradeSignalsExpert",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
+  },
+  "6416839955": {
+    "src": [
+      "nas100us30goldpips"
+    ],
+    "dst": [
+      "US30_NAS100_GOLD_SIGNALS"
+    ],
+    "lang": "en",
+    "username": "@Nas100Us30_Admins",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
+  },
+  "6730838991": {
+    "src": [],
+    "dst": [],
+    "lang": "en",
+    "username": "",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
+  },
+  "5717753923": {
+    "src": [
+      "forexgdp0"
+    ],
+    "dst": [
+      "goldfx_signalls"
+    ],
+    "lang": "en",
+    "username": "@Goldfxadminl",
+    "active": false,
+    "allow_forwarded": false,
+    "use_seo_hashtags": false
   }
 }
