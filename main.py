@@ -209,17 +209,9 @@ def clean_text(text, username="@destinationusername"):
     dest_no_at = username.lstrip("@")
     html_link = f'<a href="https://t.me/{dest_no_at}">{username}</a>'
 
-    # Remove t.me/@1234xxxx links (where username starts with 4 digits)
+    # Replace ANY t.me link (including join links like +XXXX) with our HTML link
     text = re.sub(
-        r'(https?://)?(www\.)?t\.me/@?(\d{4}[a-zA-Z0-9_]+)',
-        lambda m: f"@{m.group(3)}",
-        text,
-        flags=re.IGNORECASE
-    )
-
-    # Replace t.me/username (where username does NOT start with 4 digits) with HTML link
-    text = re.sub(
-        r'(https?://)?(www\.)?t\.me/@?([a-zA-Z_][a-zA-Z0-9_]+)',
+        r'(https?://)?(www\.)?t\.me/[^\s]+',
         html_link,
         text,
         flags=re.IGNORECASE
@@ -240,10 +232,13 @@ def clean_text(text, username="@destinationusername"):
         text
     )
 
-    # Replace emails with HTML link
-    text = re.sub(r'\b\S+@\S+\.\S+\b', html_link, text)
+    # Replace emails with HTML link – stricter pattern so "Gold@4060.8-4066"
+    # is NOT treated as an email
+    email_pattern = r'\b[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}\b'
+    text = re.sub(email_pattern, html_link, text)
 
     return text
+
 
 
 
@@ -402,7 +397,6 @@ def should_skip_due_to_links(text):
     if not text:
         return False
 
-    # Find all links in the text
     links = re.findall(r'(https?://[^\s]+|www\.[^\s]+)', text, flags=re.IGNORECASE)
     whitelist = ['https://tronscan', 'https://blockchain', 'https://www.blockchain']
 
@@ -414,25 +408,35 @@ def should_skip_due_to_links(text):
         # Allow whitelisted blockchain/tronscan links
         if any(link_low.startswith(wl) for wl in whitelist):
             continue
+
         # Otherwise: forbidden external link
+        print(f"[DEBUG][LINK-FILTER] Blocking because of external link: {link}")
         return True
+
     return False
 
+
 def has_forbidden_forwarded_link(text):
+    """
+    For forwarded posts, use the same logic as should_skip_due_to_links,
+    but first neutralise wa.me links so they do not cause a skip.
+    This keeps behaviour consistent between forwarded and non-forwarded posts.
+    """
     if not text:
         return False
-    # Any t.me/username or http(s)://t.me/username
-    if re.search(r'(https?://)?(www\.)?t\.me/@?[a-zA-Z0-9_]{4,}', text, flags=re.IGNORECASE):
-        return True
-    # Any http(s):// or www.
-    if re.search(r'(https?://\S+|www\.\S+)', text, flags=re.IGNORECASE):
-        return True
-    # Any @mention that is NOT 4 digits after the @
-    for match in re.finditer(r'(?<![\w.])@([a-zA-Z0-9_]{4,})', text):
-        username = match.group(1)
-        if not username[:4].isdigit():
-            return True
-    return False
+
+    # Neutralise wa.me -> placeholder (same behaviour as other branches)
+    safe_text = replace_wa_me_link(text, username="@username")
+
+    # Reuse the same external-link check logic
+    res = should_skip_due_to_links(safe_text)
+
+    # Debug so you can see why forwarded posts are skipped
+    if res:
+        print(f"[DEBUG][FORWARDED-LINK] Blocking forwarded post due to external link: {safe_text}")
+
+    return res
+
 
 
 
@@ -462,13 +466,14 @@ async def my_handler(event):
             username = conf.get("username", "@username")
             msg = event.message
 
-            async def send_album(dst, album_events):
+            async def send_album(dst, album_events, username, lang, conf):
                 album_events.sort(key=lambda e: e.id)
                 files = []
                 caption = None
                 reply_to = None
                 src_ids = []
                 final_reply_markup = None
+
                 for idx, e in enumerate(album_events):
                     m = e.message
                     file = m.photo or m.document
@@ -476,8 +481,12 @@ async def my_handler(event):
                         files.append(file)
                         src_ids.append((e.chat_id, m.id))
                         if idx == 0:
-                            caption = process_caption_or_text(m.message, username=username,
-                                                              lang=lang) if m.message else None
+                            caption = process_caption_or_text(
+                                m.message,
+                                username=username,
+                                lang=lang
+                            ) if m.message else None
+
                             if conf.get("use_seo_hashtags", False) and caption:
                                 caption = add_seo_hashtags(caption)
 
@@ -487,6 +496,7 @@ async def my_handler(event):
                             if m.reply_to_msg_id:
                                 key = (e.chat_id, m.reply_to_msg_id, dst)
                                 reply_to = reply_map.get(key)
+
                 if files:
                     try:
                         sent_list = await client.send_file(
@@ -495,7 +505,7 @@ async def my_handler(event):
                             caption=caption,
                             parse_mode='html',
                             reply_to=reply_to,
-                            buttons=final_reply_markup  # <<<< ADD THIS ARGUMENT
+                            buttons=final_reply_markup
                         )
                         if not isinstance(sent_list, list):
                             sent_list = [sent_list]
@@ -505,12 +515,14 @@ async def my_handler(event):
                     except Exception as e:
                         print(f"Forward album error to {dst}: {e}")
 
-            async def send_album_as_natively_forwarded(dst, album_events):
+            async def send_album_as_natively_forwarded(dst, album_events, allow_forwarded):
                 if not allow_forwarded:
-                    print(f"Skipped forwarded album for user {user_id} to {dst}: 'allow_forwarded' is off.")
+                    print(f"Skipped forwarded album to {dst}: 'allow_forwarded' is off.")
                     return
+
                 album_events.sort(key=lambda e: e.id)
-                # -- ADD THIS BLOCK TO CHECK ALL PARTS FOR FORBIDDEN CONTENT --
+
+                # Check all parts for forbidden content
                 for e in album_events:
                     m = e.message
                     text_to_check = ""
@@ -521,10 +533,10 @@ async def my_handler(event):
                     if hasattr(m, "caption") and m.caption:
                         text_to_check += m.caption + " "
                     if has_forbidden_forwarded_link(text_to_check):
-                        print(f"Skipped forwarded album for {dst}: forbidden @username, t.me, or link found.")
-                        await asyncio.sleep(0)  # just yield, but don't forward
+                        print(f"Skipped forwarded album for {dst}: forbidden link found.")
+                        await asyncio.sleep(0)
                         return
-                # -- END BLOCK --
+
                 for e in album_events:
                     m = e.message
                     try:
@@ -535,11 +547,13 @@ async def my_handler(event):
                         print(f"Native forward album part error: {e}")
 
             if msg.grouped_id:
-                group_id = (event.chat_id, msg.grouped_id)
+                # Make the album grouping *per user*, not global
+                group_id = (user_id, event.chat_id, msg.grouped_id)
                 media_group_cache[group_id].append(event)
                 media_group_timestamps[group_id] = time.time()
 
-                async def handle_album_enqueue(group_id, destinations):
+                async def handle_album_enqueue(group_id, destinations, username, lang, conf):
+
                     """
                     Wait for the album to be fully received, then process it for all destinations.
                     Robust against partial/incomplete albums and race conditions.
@@ -558,18 +572,6 @@ async def my_handler(event):
                     if not album_events:
                         return
 
-                    # The username/lang/other context is inferred from first message's chat
-                    first_event = album_events[0]
-                    src_username = getattr(first_event.chat, 'username', None)
-                    # It's possible you want to pull username/lang from user_settings
-                    settings = load_user_settings()
-                    conf = None
-                    for user_id, c in settings.items():
-                        if src_username and src_username.lower() in [s.lower() for s in c.get("src", [])]:
-                            conf = c
-                            break
-                    username = conf.get("username", "@username") if conf else "@username"
-
                     for dst in destinations:
                         forbidden = False
                         for e in album_events:
@@ -582,15 +584,17 @@ async def my_handler(event):
                             if hasattr(m, "caption") and m.caption:
                                 text_to_check += m.caption + " "
 
-                            # --- ADD THIS LINE ---
+                            # Neutralise wa.me links
                             text_to_check = replace_wa_me_link(text_to_check, username=username)
 
                             if should_skip_due_to_links(text_to_check):
                                 forbidden = True
                                 break
+
                         if forbidden:
                             print(
-                                f"Skipped album for destination {dst}: contains non-whitelisted external link in at least one media/caption.")
+                                f"Skipped album for destination {dst}: contains non-whitelisted external link in at least one media/caption."
+                            )
                             continue
 
                         # Decide function/callback for album
@@ -599,24 +603,27 @@ async def my_handler(event):
 
                         print(f"[DEBUG][ALBUM] dst={dst} has_forward={has_forward} has_buttons={has_buttons}")
 
+                        ts = min(e.message.date.timestamp() for e in album_events)
+
                         if has_forward and not has_buttons:
-                            ts = min(e.message.date.timestamp() for e in album_events)
+                            # Native forward (but with per-user allow_forwarded)
                             queue_forward_job(
-                                dst, ts,
+                                dst,
+                                ts,
                                 {
                                     'func': send_album_as_natively_forwarded,
-                                    'args': (dst, album_events),
+                                    'args': (dst, album_events, conf.get("allow_forwarded", True)),
                                     'kwargs': {},
                                 }
                             )
                         else:
-                            # If any part has buttons (or not forwarded), re-send so we can rewrite buttons
-                            ts = min(e.message.date.timestamp() for e in album_events)
+                            # Re-send so we can rewrite buttons and caption with the correct @username
                             queue_forward_job(
-                                dst, ts,
+                                dst,
+                                ts,
                                 {
                                     'func': send_album,
-                                    'args': (dst, album_events),
+                                    'args': (dst, album_events, username, lang, conf),
                                     'kwargs': {},
                                 }
                             )
@@ -627,8 +634,17 @@ async def my_handler(event):
 
                 # Only start the timer once per new album
                 if len(media_group_cache[group_id]) == 1:
-                    asyncio.create_task(handle_album_enqueue(group_id, destinations))
-                return
+                    asyncio.create_task(
+                        handle_album_enqueue(
+                            group_id,
+                            list(destinations),  # snapshot
+                            username,
+                            lang,
+                            conf,
+                        )
+                    )
+
+                continue
 
             # --- Single messages: enqueue instead of direct send ---
             for dst in destinations:
@@ -663,28 +679,69 @@ async def my_handler(event):
                         key = (event.chat_id, msg.reply_to_msg_id, dst)
                         reply_to = reply_map.get(key)
 
-                    # --- Native forwarded message ---
+                    # --- Native forwarded message decision ---
                     is_forward = bool(getattr(msg, "fwd_from", None))
                     has_buttons = bool(getattr(msg, "reply_markup", None))
-                    print(f"[DEBUG][SINGLE] dst={dst} is_forward={is_forward} has_buttons={has_buttons} -> "
-                          f"{'native-forward' if (is_forward and not has_buttons) else 're-send with rewrite'}")
 
-                    if is_forward and not has_buttons:
-                        text_to_check = ""
-                        if msg.message:
-                            text_to_check += msg.message + " "
-                        if hasattr(msg, "text") and msg.text:
-                            text_to_check += msg.text + " "
-                        if hasattr(msg, "caption") and msg.caption:
-                            text_to_check += msg.caption + " "
+                    # Build text_to_check once
+                    text_to_check = ""
+                    if msg.message:
+                        text_to_check += msg.message + " "
+                    if hasattr(msg, "text") and msg.text:
+                        text_to_check += msg.text + " "
+                    if hasattr(msg, "caption") and msg.caption:
+                        text_to_check += msg.caption + " "
+
+                    # Detect ANY t.me link in the forwarded text
+                    has_tme_link = bool(re.search(
+                        r'(https?://)?(www\.)?t\.me/[^\s]+',
+                        text_to_check,
+                        flags=re.IGNORECASE
+                    ))
+
+                    print(
+                        f"[DEBUG][SINGLE] dst={dst} is_forward={is_forward} "
+                        f"has_buttons={has_buttons} has_tme_link={has_tme_link} -> "
+                        f"{'native-forward' if (is_forward and not has_buttons and not has_tme_link) else 're-send with rewrite'}"
+                    )
+
+                    # Only native-forward if:
+                    # - it is forwarded
+                    # - has no buttons
+                    # - AND has no t.me links (otherwise we must rewrite)
+                    if is_forward and not has_buttons and not has_tme_link:
                         if has_forbidden_forwarded_link(text_to_check):
-                            print(f"Skipped forwarded-from post to {dst}: forbidden @username, t.me, or link found.")
+                            print(f"Skipped forwarded-from post to {dst}: forbidden external link.")
                             await asyncio.sleep(0)  # just yield, don't break order!
                             return
 
                         sent = await client.forward_messages(dst, msg)
                         sent_id = sent[0].id if isinstance(sent, list) else sent.id
                         reply_map[(event.chat_id, msg.id, dst)] = sent_id
+
+
+                    # # --- Native forwarded message ---
+                    # is_forward = bool(getattr(msg, "fwd_from", None))
+                    # has_buttons = bool(getattr(msg, "reply_markup", None))
+                    # print(f"[DEBUG][SINGLE] dst={dst} is_forward={is_forward} has_buttons={has_buttons} -> "
+                    #       f"{'native-forward' if (is_forward and not has_buttons) else 're-send with rewrite'}")
+                    #
+                    # if is_forward and not has_buttons:
+                    #     text_to_check = ""
+                    #     if msg.message:
+                    #         text_to_check += msg.message + " "
+                    #     if hasattr(msg, "text") and msg.text:
+                    #         text_to_check += msg.text + " "
+                    #     if hasattr(msg, "caption") and msg.caption:
+                    #         text_to_check += msg.caption + " "
+                    #     if has_forbidden_forwarded_link(text_to_check):
+                    #         print(f"Skipped forwarded-from post to {dst}: forbidden @username, t.me, or link found.")
+                    #         await asyncio.sleep(0)  # just yield, don't break order!
+                    #         return
+                    #
+                    #     sent = await client.forward_messages(dst, msg)
+                    #     sent_id = sent[0].id if isinstance(sent, list) else sent.id
+                    #     reply_map[(event.chat_id, msg.id, dst)] = sent_id
                     elif msg.media:
                         if isinstance(msg.media, MessageMediaWebPage):
                             final_text = process_caption_or_text(msg.message, username=username, lang=lang)

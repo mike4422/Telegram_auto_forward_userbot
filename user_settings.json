@@ -17,29 +17,30 @@
   "5735637050": {
     "src": [
       "goldsignals_ioz0",
-      "MIKE_GOLD_MASTERS"
+      "MIKE_GOLD_MASTERS",
+      "thecryptonetworrkss"
     ],
     "dst": [
       "Gold_btc_vip_signals"
     ],
     "lang": "en",
-    "username": "@Mikegoldmasterofficials",
+    "username": "@official_admins1",
     "active": true,
     "allow_forwarded": false,
     "use_seo_hashtags": false
   },
   "8213109925": {
     "src": [
-      "Signalscrypto_Trade"
+      "schooll_of_Tradeso"
     ],
     "dst": [
-      "nitrotrades10"
+      "schooloftrades4"
     ],
     "lang": "en",
-    "username": "@nitrotradesofficials",
+    "username": "@School_of_trades3",
     "active": true,
     "allow_forwarded": true,
-    "use_seo_hashtags": true
+    "use_seo_hashtags": false
   },
   "7777501659": {
     "src": [
@@ -56,16 +57,16 @@
   },
   "6857690818": {
     "src": [
-      "vipulkaushikkk"
+      "ben_gold_tradervip"
     ],
     "dst": [
-      "cryptoFuturesSpotSignals"
+      "bengoldtrader8"
     ],
     "lang": "en",
-    "username": "@CryptoSignalsPro2",
+    "username": "@Wallstreetben6",
     "active": true,
     "allow_forwarded": true,
-    "use_seo_hashtags": true
+    "use_seo_hashtags": false
   },
   "7050482817": {
     "src": [
@@ -82,36 +83,35 @@
   },
   "7479891552": {
     "src": [
-      "DavinciJeremieTrades",
-      "davincij15_platform",
-      "signalscrypto_trade"
+      "goldsexpertsignals",
+      "goldmastermikeofficial"
     ],
     "dst": [
-      "DavinciJeremie_Trades",
-      "larkdavis_signals"
+      "mikegoldmaster13"
     ],
     "lang": "en",
-    "username": "@DavinciJeremieOfficials",
+    "username": "@Mikegoldmastervips",
     "active": true,
     "allow_forwarded": true,
     "use_seo_hashtags": false
   },
   "7954408649": {
     "src": [
-      "Evelynoptionstradera"
+      "thecryptonetworrkss",
+      "cryptojoebtc_signal11"
     ],
     "dst": [
-      "EvelynMorganOptionTrading"
+      "thecryptonetwork_3"
     ],
     "lang": "en",
-    "username": "@Evelyn_morgan_officials",
+    "username": "@Thecryptonetwork_7",
     "active": true,
     "allow_forwarded": true,
-    "use_seo_hashtags": false
+    "use_seo_hashtags": true
   },
   "7423411245": {
     "src": [
-      "signalskami7"
+      "michaelvandepoppe"
     ],
     "dst": [
       "MichaelVanDePoppeCryptos"
@@ -124,7 +124,7 @@
   },
   "7142089503": {
     "src": [
-      "goldfx_signalls"
+      "us30dowjones_usa_usoil_nas100"
     ],
     "dst": [
       "joashnaidoo_sa3"
@@ -151,9 +151,8 @@
   },
   "7469324453": {
     "src": [
-      "bollingerBandsCrypto11",
-      "goldfx_signalls",
-      "gold_fx_signals_testing"
+      "goldsexpertsignals",
+      "thecryptonetworrkss"
     ],
     "dst": [
       "crypto_gold_signals0"
@@ -188,15 +187,97 @@
   },
   "5717753923": {
     "src": [
-      "forexgdp0"
+      "crypto_trading_signals53"
     ],
     "dst": [
-      "goldfx_signalls"
+      "crypto_trading_spot_futures",
+      "binance_futures_spots_trading"
     ],
     "lang": "en",
-    "username": "@Goldfxadminl",
-    "active": false,
+    "username": "@testingforever444",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
+  },
+  "7589164248": {
+    "src": [
+      "bitcoinBullets",
+      "CryptoFlowHQLKvip"
+    ],
+    "dst": [
+      "BenjaminCowenTelegrams"
+    ],
+    "lang": "en",
+    "username": "@Cowen_Benjamins",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": true
+  },
+  "7861950017": {
+    "src": [
+      "paulgoldhunterfxsignals",
+      "GHP_Trading_Education001"
+    ],
+    "dst": [
+      "goldhunterpaulacademy"
+    ],
+    "lang": "en",
+    "username": "@Paulgoldhunter4",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
+  },
+  "7000880820": {
+    "src": [
+      "Goldsexpertsignals"
+    ],
+    "dst": [
+      "goldfxsignals13"
+    ],
+    "lang": "en",
+    "username": "@Goldfxsignalsadmins",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
+  },
+  "5525610857": {
+    "src": [
+      "wallstreet_queen_official1",
+      "saartajaziz_vip"
+    ],
+    "dst": [
+      "wallstreetqueens1"
+    ],
+    "lang": "en",
+    "username": "@Wallstreetqueen_officialls",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": true
+  },
+  "7588981361": {
+    "src": [
+      "Gesara_QFS"
+    ],
+    "dst": [
+      "Nesara_Gesara_QFS_Trump"
+    ],
+    "lang": "en",
+    "username": "@Anderson_coopers",
+    "active": true,
     "allow_forwarded": false,
+    "use_seo_hashtags": false
+  },
+  "7602021814": {
+    "src": [
+      "QamarAlali16"
+    ],
+    "dst": [
+      "QamarAlali8"
+    ],
+    "lang": "ar",
+    "username": "@Qamar_Alali16",
+    "active": true,
+    "allow_forwarded": true,
     "use_seo_hashtags": false
   }
 }
