@@ -16,7 +16,7 @@
   },
   "5735637050": {
     "src": [
-      "goldsignals_ioz0",
+      "goldsignals_ioz0fx",
       "MIKE_GOLD_MASTERS",
       "thecryptonetworrkss"
     ],
@@ -57,7 +57,7 @@
   },
   "6857690818": {
     "src": [
-      "ben_gold_tradervip"
+      "bengolldtrrader"
     ],
     "dst": [
       "bengoldtrader8"
@@ -84,10 +84,10 @@
   "7479891552": {
     "src": [
       "goldsexpertsignals",
-      "goldmastermikeofficial"
+      "mike_gold_masters1"
     ],
     "dst": [
-      "mikegoldmaster13"
+      "Goldmastermike3"
     ],
     "lang": "en",
     "username": "@Mikegoldmastervips",
@@ -111,16 +111,16 @@
   },
   "7423411245": {
     "src": [
-      "michaelvandepoppe"
+      "mmcrypto_telegram"
     ],
     "dst": [
-      "MichaelVanDePoppeCryptos"
+      "mmcrypto_trades_investment"
     ],
     "lang": "en",
-    "username": "@Michael_van_de_poppes",
+    "username": "@mmcrypto_telegrams",
     "active": true,
     "allow_forwarded": true,
-    "use_seo_hashtags": true
+    "use_seo_hashtags": false
   },
   "7142089503": {
     "src": [
@@ -193,7 +193,7 @@
       "crypto_trading_spot_futures",
       "binance_futures_spots_trading"
     ],
-    "lang": "en",
+    "lang": "ar",
     "username": "@testingforever444",
     "active": true,
     "allow_forwarded": true,
@@ -276,6 +276,32 @@
     ],
     "lang": "ar",
     "username": "@Qamar_Alali16",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
+  },
+  "6939613428": {
+    "src": [
+      "goldfxsignals13"
+    ],
+    "dst": [
+      "Xauusd_pipsprofits1"
+    ],
+    "lang": "en",
+    "username": "@Xauusd_pipsprofits1SUPPORT",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
+  },
+  "6285306720": {
+    "src": [
+      "goldfxsignals13"
+    ],
+    "dst": [
+      "TOPCRYPTOSIGNALSARABIC1"
+    ],
+    "lang": "en",
+    "username": "@cryptoarab2016",
     "active": true,
     "allow_forwarded": true,
     "use_seo_hashtags": false
