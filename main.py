@@ -11,7 +11,6 @@ import heapq
 from itertools import count
 from telethon.tl.custom import Button
 
-
 heap_counter = count()
 
 destination_queues = {}         # dst_chat_id: heapq [(timestamp, jobdict)]
