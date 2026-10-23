@@ -10,6 +10,10 @@ from collections import defaultdict, deque
 import heapq
 from itertools import count
 from telethon.tl.custom import Button
+from supabase import create_client, Client
+from dotenv import load_dotenv
+
+load_dotenv()
 
 heap_counter = count()
 
@@ -50,7 +54,10 @@ API_ID = 26376666  # <-- Your api_id here
 API_HASH = '61ee2def31a7a12026ecfa1c72474489'
 PHONE_NUMBER = '+14053131520'  # <-- Your phone number
 
-SETTINGS_FILE = "user_settings.json"
+SUPABASE_URL = os.getenv("SUPABASE_URL", "YOUR_SUPABASE_URL_HERE")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY", "YOUR_SUPABASE_KEY_HERE")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+_settings_cache = {}
 
 outbound_queues = defaultdict(asyncio.Queue)  # dest_id -> queue of (timestamp, coroutine)
 queue_workers_started = set()
@@ -103,16 +110,47 @@ def users_for_source_channel(src_username):
     return results
 
 
-# --- Settings Handling ---
+# --- Supabase Settings Handling ---
 def load_user_settings():
-    if not os.path.exists(SETTINGS_FILE):
-        return {}
-    with open(SETTINGS_FILE, "r") as f:
-        return json.load(f)
+    global _settings_cache
+    try:
+        response = supabase.table("user_settings").select("*").execute()
+        data = response.data
+        new_cache = {}
+        for row in data:
+            uid = str(row["user_id"])
+            new_cache[uid] = {
+                "src": row.get("src", []) or [],
+                "dst": row.get("dst", []) or [],
+                "lang": row.get("lang", "en"),
+                "username": row.get("username", ""),
+                "active": row.get("active", True),
+                "allow_forwarded": row.get("allow_forwarded", True),
+                "use_seo_hashtags": row.get("use_seo_hashtags", False),
+            }
+        _settings_cache = new_cache
+    except Exception as e:
+        print(f"Error loading settings from Supabase: {e}")
+    return _settings_cache
 
 def save_user_settings(settings):
-    with open(SETTINGS_FILE, "w") as f:
-        json.dump(settings, f, indent=2)
+    global _settings_cache
+    _settings_cache = settings
+    try:
+        for user_id, conf in settings.items():
+            payload = {
+                "user_id": str(user_id),
+                "src": conf.get("src", []),
+                "dst": conf.get("dst", []),
+                "lang": conf.get("lang", "en"),
+                "username": conf.get("username", ""),
+                "active": conf.get("active", True),
+                "allow_forwarded": conf.get("allow_forwarded", True),
+                "use_seo_hashtags": conf.get("use_seo_hashtags", False),
+            }
+            supabase.table("user_settings").upsert(payload).execute()
+    except Exception as e:
+        print(f"Error saving settings to Supabase: {e}")
 
 def get_settings(user_id):
     settings = load_user_settings()
@@ -852,6 +890,8 @@ async def edit_handler(event):
                 print(f"Edit error for {dst}: {e}")
 
 if __name__ == '__main__':
-    print("Telethon userbot running! Type /start in private chat for command menu.")
+    print("Loading initial settings from Supabase...")
+    load_user_settings()
+    print("Telethon userbot running with Supabase backend! Type /start in private chat for command menu.")
     client.start(phone=PHONE_NUMBER)
     client.run_until_disconnected()
