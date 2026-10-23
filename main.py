@@ -12,6 +12,7 @@ from itertools import count
 from telethon.tl.custom import Button
 from supabase import create_client, Client
 from dotenv import load_dotenv
+from keep_alive import keep_alive
 
 load_dotenv()
 
@@ -890,6 +891,7 @@ async def edit_handler(event):
                 print(f"Edit error for {dst}: {e}")
 
 if __name__ == '__main__':
+    keep_alive()
     print("Loading initial settings from Supabase...")
     load_user_settings()
     print("Telethon userbot running with Supabase backend! Type /start in private chat for command menu.")
