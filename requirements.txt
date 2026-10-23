@@ -2,3 +2,4 @@ telethon
 deep-translator
 supabase
 python-dotenv
+flask
