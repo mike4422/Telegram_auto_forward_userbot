@@ -1,8 +1,0 @@
-app = 'telegram-auto-forward-userbot'
-primary_region = 'iad'
-
-[build]
-dockerfile = "Dockerfile"
-
-[processes]
-app = "python main.py"
