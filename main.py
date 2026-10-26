@@ -895,3 +895,4 @@ if __name__ == '__main__':
     print("Telethon userbot running with Supabase backend! Type /start in private chat for command menu.")
     client.start(phone=PHONE_NUMBER)
     client.run_until_disconnected()
+
