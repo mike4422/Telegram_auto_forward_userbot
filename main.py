@@ -164,29 +164,57 @@ def update_settings(user_id, **kwargs):
     save_user_settings(settings)
     print(f"Updated settings for user {user_id}: {settings[user_id]}")
 
-# --- Text/Clean/Translate Helpers (You already have these) ---
-def translate_preserving_usernames(text: str, dest: str = "ar") -> str:
-    if not text:
+# --- Text/Clean/Translate Helpers ---
+TRANSLATION_CACHE = {}  # (text, dest) -> translated_text
+
+def translate_preserving_usernames(text: str, dest: str = "en") -> str:
+    if not text or not text.strip():
         return text
-    parts = re.split(r'(@[a-zA-Z0-9_]{4,})', text)
-    out = []
+
+    dest = (dest or "en").strip().lower()
+
+    # Return cached result immediately if we already translated this exact message
+    cache_key = (text, dest)
+    if cache_key in TRANSLATION_CACHE:
+        return TRANSLATION_CACHE[cache_key]
+
     try:
         from deep_translator import GoogleTranslator
     except ImportError:
-        GoogleTranslator = None
-    for part in parts:
-        if part.startswith('@') and len(part) > 4:
-            out.append(part)
-        else:
-            try:
-                if GoogleTranslator:
-                    out.append(GoogleTranslator(source='auto', target=dest).translate(part) if part.strip() else part)
-                else:
-                    out.append(part)
-            except Exception as e:
-                print(f"Translation error: {e}")
-                out.append(part)
-    return ''.join(out)
+        return text
+
+    # Protect @usernames and HTML <a> tags with placeholders so Google translates in ONE request
+    tokens = re.findall(r'(<a href="[^"]+">[^<]+</a>|@[a-zA-Z0-9_]{4,})', text)
+    placeholder_map = {}
+    protected_text = text
+
+    for i, token in enumerate(tokens):
+        placeholder = f"XUSR{i}X"
+        placeholder_map[placeholder] = token
+        protected_text = protected_text.replace(token, placeholder, 1)
+
+    # If the entire message was only links/usernames, skip API call
+    if not re.sub(r'XUSR\d+X|\s+', '', protected_text):
+        return text
+
+    try:
+        # Pace requests slightly (0.25s) to stay strictly under Google's 5 req/sec limit
+        time.sleep(0.25)
+        translated_text = GoogleTranslator(source='auto', target=dest).translate(protected_text)
+        if not translated_text:
+            translated_text = protected_text
+
+        for placeholder, token in placeholder_map.items():
+            translated_text = translated_text.replace(placeholder, token)
+
+        # Keep cache bounded to last 500 messages
+        if len(TRANSLATION_CACHE) > 500:
+            TRANSLATION_CACHE.clear()
+        TRANSLATION_CACHE[cache_key] = translated_text
+        return translated_text
+    except Exception as e:
+        print(f"Translation error: {e}")
+        return text
 
 def break_telegram_mention(match):
     at_name = match.group(0)
@@ -259,7 +287,10 @@ def process_caption_or_text(txt, username=None, lang=None):
         lang = "en"
     replaced = replace_wa_me_link(txt, username=username)
     cleaned = clean_text(replaced, username=username)
-    translated = translate_preserving_usernames(cleaned, dest=lang)
+    if lang.lower() not in ["en", "english"]:
+        translated = translate_preserving_usernames(cleaned, dest=lang)
+    else:
+        translated = cleaned
     final = force_link_usernames(translated)
     dest_no_at = username.lstrip("@")
     html_link = f'<a href="https://t.me/{dest_no_at}">{username}</a>'
@@ -354,10 +385,26 @@ async def handle_dm_command(event):
         destinations = [clean_username(p) for p in parts if p]
         update_settings(user_id, dst=destinations)
         await event.reply(f"✅ Destination channels set: {', '.join(destinations)}")
-    elif text_lower.startswith('/setlang '):
-        code = text[9:].strip()
+    elif text_lower.startswith('/setlang'):
+        raw_lang = text[8:].strip().lower()
+        if not raw_lang:
+            await event.reply("Usage: `/setlang <language_or_code>` (e.g. `en`, `es`, `pt`, `ar`, `fr`, `de`, `ru`, `hi`, `zh-CN`, `tr`, `id`, `vi`)")
+            return
+        try:
+            from deep_translator import GoogleTranslator
+            supported = GoogleTranslator().get_supported_languages(as_dict=True)
+            # Accept either full language name ('portuguese') or code ('pt')
+            if raw_lang in supported:
+                code = supported[raw_lang]
+            elif raw_lang in [v.lower() for v in supported.values()]:
+                code = next(v for v in supported.values() if v.lower() == raw_lang)
+            else:
+                await event.reply(f"❌ Unsupported language `{raw_lang}`. Try a standard code like `en`, `es`, `pt`, `ar`, `fr`, `de`, `ru`, `hi`, `tr`, or `zh-CN`.")
+                return
+        except Exception:
+            code = raw_lang
         update_settings(user_id, lang=code)
-        await event.reply(f"✅ Language set to: {code}")
+        await event.reply(f"✅ Language set to: `{code}`")
     elif text_lower.startswith('/setusername '):
         uname = text[13:].strip()
         update_settings(user_id, username=uname)
