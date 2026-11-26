@@ -343,7 +343,10 @@
     ],
     "dst": [
       "robertcroakgoldsignals",
-      "rafasignalls"
+      "rafasignalls",
+      "edgarcruz007_Trading_Signals",
+      "TJRTrades_signalls",
+      "fxalexg_investments"
     ],
     "lang": "en",
     "username": "@official_admins1",
@@ -523,6 +526,34 @@
     ],
     "lang": "en",
     "username": "@Gold_Hunter_pauls",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
+  },
+  "9029792871": {
+    "src": [
+      "tradewithchantel_l",
+      "TradeWithChantelTelegram",
+      "tradewithchantelinvestors"
+    ],
+    "dst": [
+      "TradeWithChantelj"
+    ],
+    "lang": "en",
+    "username": "@TradeWithChantelsAdmin",
+    "active": true,
+    "allow_forwarded": true,
+    "use_seo_hashtags": false
+  },
+  "9174723011": {
+    "src": [
+      "Ajcurrency01"
+    ],
+    "dst": [
+      "AjCurrency_Gold_Forex_signals"
+    ],
+    "lang": "en",
+    "username": "@Ajmudronja1",
     "active": true,
     "allow_forwarded": true,
     "use_seo_hashtags": false

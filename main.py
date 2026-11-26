@@ -5,6 +5,7 @@ import re
 import time
 from collections import defaultdict
 from telethon import TelegramClient, events
+from telethon.sessions import StringSession
 from telethon.tl.types import MessageMediaWebPage
 from collections import defaultdict, deque
 import heapq
@@ -335,7 +336,17 @@ def rewrite_buttons(reply_markup, username):
 
 
 # --- Userbot Setup ---
-client = TelegramClient('userbot_session', API_ID, API_HASH)
+SESSION_STRING = os.getenv("TELETHON_SESSION", "")
+client = TelegramClient(
+    StringSession(SESSION_STRING),
+    API_ID,
+    API_HASH,
+    device_model="Userbot forwarder",
+    system_version="macos",
+    app_version="11.5.3",
+    lang_code="en",
+    system_lang_code="en-US"
+)
 
 # --- Menu/Commands ---
 @client.on(events.NewMessage(incoming=True))
